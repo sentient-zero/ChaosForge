@@ -3,13 +3,13 @@ Demo API that forges async chaos: state-dependent chains, eventual consistency, 
 
 # Async Demo API for BurpSuite Extensions
 
-Demo API designed to test **ChainJockey** and **SnitchLab** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
+Demo API designed to test **BurpExtension1** and **BurpExtension2** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
 
 ChaosForge - Where async workflows go to die (so your extensions don't have to)
 
 Demo API that throws everything broken about modern async at your tooling. State-dependent chains that fail halfway through. Resources that take their sweet time provisioning. Data that surfaces three endpoints later when you've stopped looking. The kind of eventually-consistent nightmare that makes traditional testing tools curl up and cry.
 
-Built to stress-test ChainJockey's state handling and SnitchLab's canary tracking against real-world async chaos.
+Built to stress-test BurpExtension1's state handling and BurpExtension2's canary tracking against real-world async chaos.
 
 Features:
 - Multi-state workflows with random failures
@@ -45,9 +45,9 @@ This API simulates **real-world async complexity** that breaks traditional testi
 - **Retry scenarios** - Endpoints that fail randomly for testing retry logic
 - **Storage & retrieval patterns** - Injected data surfaces in later requests
 
-## Testing ChainJockey
+## Testing BurpExtension1
 
-ChainJockey handles complex request chains with state dependencies. Here are the key test scenarios:
+BurpExtension1 handles complex request chains with state dependencies. Here are the key test scenarios:
 
 ### Scenario 1: Order Processing Workflow
 
@@ -73,7 +73,7 @@ ChainJockey handles complex request chains with state dependencies. Here are the
    → Returns 409 if wrong state
 ```
 
-**ChainJockey Config:**
+**BurpExtension1 Config:**
 ```json
 {
   "flow": [
@@ -132,9 +132,9 @@ GET /api/flaky
 → Test retry logic with exponential backoff
 ```
 
-## Testing SnitchLab
+## Testing BurpExtension2
 
-SnitchLab tracks canaries across async storage and retrieval. Here are the key patterns:
+BurpExtension2 tracks canaries across async storage and retrieval. Here are the key patterns:
 
 ### Pattern 1: User Profile Storage
 
@@ -161,7 +161,7 @@ SnitchLab tracks canaries across async storage and retrieval. Here are the key p
    → DELAYED 10s: Canary appears in analytics last
 ```
 
-**SnitchLab should track:** Where `CANARY_XSS_12345` surfaces across all these endpoints.
+**BurpExtension2 should track:** Where `CANARY_XSS_12345` surfaces across all these endpoints.
 
 ### Pattern 2: Comment Storage (Stored XSS Pattern)
 
@@ -179,7 +179,7 @@ SnitchLab tracks canaries across async storage and retrieval. Here are the key p
    → Canary appears in recent comments
 ```
 
-**SnitchLab should track:** Stored canary appearing in different comment views.
+**BurpExtension2 should track:** Stored canary appearing in different comment views.
 
 ### Pattern 3: Webhook Callback Tracking
 
@@ -273,13 +273,13 @@ SnitchLab tracks canaries across async storage and retrieval. Here are the key p
 
 ## Tips for Testing
 
-### For ChainJockey:
+### For BurpExtension1:
 1. Start with the order flow - it has the most complex state dependencies
 2. Test retry logic on `/api/flaky` endpoint
 3. Try chaining resource provisioning → connection
 4. Experiment with different delay configurations
 
-### For SnitchLab:
+### For BurpExtension2:
 1. Use distinct canary patterns per test: `CANARY_TEST1_001`, `CANARY_TEST2_002`, etc.
 2. Monitor the feed endpoint - it aggregates data from multiple sources
 3. Test the eventual consistency pattern with user profiles
@@ -301,7 +301,7 @@ SnitchLab tracks canaries across async storage and retrieval. Here are the key p
 
 ## Example cURL Commands
 
-### ChainJockey Flow Test
+### BurpExtension1 Flow Test
 ```bash
 # Create order
 ORDER_ID=$(curl -s -X POST http://localhost:8000/api/orders \
@@ -317,7 +317,7 @@ sleep 4
 curl -X PUT http://localhost:8000/api/orders/$ORDER_ID/ship
 ```
 
-### SnitchLab Canary Test
+### BurpExtension2 Canary Test
 ```bash
 # Create user with canary
 USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
