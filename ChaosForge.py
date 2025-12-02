@@ -6,6 +6,7 @@ Built for testing ChainJockey and SnitchLab extensions.
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -14,6 +15,9 @@ import asyncio
 import uuid
 import random
 from collections import defaultdict
+import strawberry
+from strawberry.fastapi import GraphQLRouter
+import dicttoxml
 
 app = FastAPI(
     title="Async Demo API",
@@ -600,6 +604,496 @@ async def reset_state():
     eventual_data.clear()
     
     return {"message": "State reset successfully"}
+
+# ============================================================================
+# GraphQL Schema (Strawberry)
+# ============================================================================
+
+@strawberry.type
+class OrderType:
+    id: str
+    product_id: str
+    quantity: int
+    status: str
+    created_at: str
+    updated_at: str
+    metadata: Optional[str] = None
+    completed_at: Optional[str] = None
+    shipped_at: Optional[str] = None
+    error: Optional[str] = None
+
+@strawberry.type
+class JobType:
+    id: str
+    job_type: str
+    status: str
+    created_at: str
+    parameters: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    result: Optional[str] = None
+    error: Optional[str] = None
+
+@strawberry.type
+class ResourceType:
+    id: str
+    resource_type: str
+    status: str
+    created_at: str
+    updated_at: str
+    config: Optional[str] = None
+    endpoint: Optional[str] = None
+    error: Optional[str] = None
+
+@strawberry.type
+class UserProfileType:
+    id: str
+    username: str
+    created_at: str
+    bio: Optional[str] = None
+    email: Optional[str] = None
+    metadata: Optional[str] = None
+
+@strawberry.type
+class CommentType:
+    id: str
+    post_id: str
+    content: str
+    author: str
+    created_at: str
+
+@strawberry.type
+class CreateOrderResponse:
+    order_id: str
+    status: str
+
+@strawberry.type
+class CreateJobResponse:
+    job_id: str
+    status: str
+
+@strawberry.type
+class CreateResourceResponse:
+    resource_id: str
+    status: str
+
+@strawberry.type
+class CreateUserResponse:
+    user_id: str
+    username: str
+
+@strawberry.type
+class CreateCommentResponse:
+    comment_id: str
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    async def order(self, order_id: str) -> Optional[OrderType]:
+        """Get order by ID"""
+        order = orders.get(order_id)
+        if not order:
+            return None
+        return OrderType(
+            id=order["id"],
+            product_id=order["product_id"],
+            quantity=order["quantity"],
+            status=order["status"],
+            created_at=order["created_at"],
+            updated_at=order["updated_at"],
+            metadata=str(order.get("metadata")) if order.get("metadata") else None,
+            completed_at=order.get("completed_at"),
+            shipped_at=order.get("shipped_at"),
+            error=order.get("error")
+        )
+    
+    @strawberry.field
+    async def job(self, job_id: str) -> Optional[JobType]:
+        """Get job by ID"""
+        job = jobs.get(job_id)
+        if not job:
+            return None
+        return JobType(
+            id=job["id"],
+            job_type=job["job_type"],
+            status=job["status"],
+            created_at=job["created_at"],
+            parameters=str(job.get("parameters")) if job.get("parameters") else None,
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at"),
+            result=str(job.get("result")) if job.get("result") else None,
+            error=job.get("error")
+        )
+    
+    @strawberry.field
+    async def resource(self, resource_id: str) -> Optional[ResourceType]:
+        """Get resource by ID"""
+        resource = resources.get(resource_id)
+        if not resource:
+            return None
+        return ResourceType(
+            id=resource["id"],
+            resource_type=resource["resource_type"],
+            status=resource["status"],
+            created_at=resource["created_at"],
+            updated_at=resource["updated_at"],
+            config=str(resource.get("config")) if resource.get("config") else None,
+            endpoint=resource.get("endpoint"),
+            error=resource.get("error")
+        )
+    
+    @strawberry.field
+    async def user(self, user_id: str) -> Optional[UserProfileType]:
+        """Get user profile by ID"""
+        profile = user_profiles.get(user_id)
+        if not profile:
+            return None
+        return UserProfileType(
+            id=profile["id"],
+            username=profile["username"],
+            created_at=profile["created_at"],
+            bio=profile.get("bio"),
+            email=profile.get("email"),
+            metadata=str(profile.get("metadata")) if profile.get("metadata") else None
+        )
+    
+    @strawberry.field
+    async def comments_for_post(self, post_id: str) -> List[CommentType]:
+        """Get comments for a post"""
+        post_comments = [c for c in comments if c["post_id"] == post_id]
+        return [
+            CommentType(
+                id=c["id"],
+                post_id=c["post_id"],
+                content=c["content"],
+                author=c["author"],
+                created_at=c["created_at"]
+            )
+            for c in post_comments
+        ]
+    
+    @strawberry.field
+    async def all_users(self) -> List[UserProfileType]:
+        """Get all user profiles"""
+        return [
+            UserProfileType(
+                id=p["id"],
+                username=p["username"],
+                created_at=p["created_at"],
+                bio=p.get("bio"),
+                email=p.get("email"),
+                metadata=str(p.get("metadata")) if p.get("metadata") else None
+            )
+            for p in user_profiles.values()
+        ]
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def create_order(self, product_id: str, quantity: int, metadata: Optional[str] = None) -> CreateOrderResponse:
+        """Create a new order"""
+        order_id = str(uuid.uuid4())
+        
+        order_data = {
+            "id": order_id,
+            "product_id": product_id,
+            "quantity": quantity,
+            "metadata": metadata,
+            "status": OrderStatus.PENDING,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        orders[order_id] = order_data
+        
+        # Start background processing - need to handle this differently in GraphQL context
+        # For now, we'll trigger it manually
+        asyncio.create_task(process_order_background(order_id))
+        
+        return CreateOrderResponse(order_id=order_id, status=OrderStatus.PENDING)
+    
+    @strawberry.mutation
+    async def ship_order(self, order_id: str) -> OrderType:
+        """Ship an order - requires completed status"""
+        order = orders.get(order_id)
+        if not order:
+            raise Exception("Order not found")
+        
+        if order["status"] != OrderStatus.COMPLETED:
+            raise Exception(f"Cannot ship order with status '{order['status']}'. Order must be completed first.")
+        
+        order["status"] = OrderStatus.SHIPPED
+        order["shipped_at"] = datetime.utcnow().isoformat()
+        order["updated_at"] = datetime.utcnow().isoformat()
+        
+        return OrderType(
+            id=order["id"],
+            product_id=order["product_id"],
+            quantity=order["quantity"],
+            status=order["status"],
+            created_at=order["created_at"],
+            updated_at=order["updated_at"],
+            metadata=str(order.get("metadata")) if order.get("metadata") else None,
+            shipped_at=order.get("shipped_at")
+        )
+    
+    @strawberry.mutation
+    async def create_job(self, job_type: str, delay: int = 5, parameters: Optional[str] = None) -> CreateJobResponse:
+        """Create a new job"""
+        job_id = str(uuid.uuid4())
+        
+        job_data = {
+            "id": job_id,
+            "job_type": job_type,
+            "parameters": parameters,
+            "status": JobStatus.QUEUED,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        jobs[job_id] = job_data
+        asyncio.create_task(process_job_background(job_id, delay))
+        
+        return CreateJobResponse(job_id=job_id, status=JobStatus.QUEUED)
+    
+    @strawberry.mutation
+    async def create_resource(self, resource_type: str, config: Optional[str] = None) -> CreateResourceResponse:
+        """Create a new resource"""
+        resource_id = str(uuid.uuid4())
+        
+        resource_data = {
+            "id": resource_id,
+            "resource_type": resource_type,
+            "config": config,
+            "status": ResourceStatus.PROVISIONING,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        resources[resource_id] = resource_data
+        asyncio.create_task(provision_resource_background(resource_id))
+        
+        return CreateResourceResponse(resource_id=resource_id, status=ResourceStatus.PROVISIONING)
+    
+    @strawberry.mutation
+    async def create_user(self, username: str, bio: Optional[str] = None, email: Optional[str] = None, metadata: Optional[str] = None) -> CreateUserResponse:
+        """Create a user profile"""
+        user_id = str(uuid.uuid4())
+        
+        profile_data = {
+            "id": user_id,
+            "username": username,
+            "bio": bio,
+            "email": email,
+            "metadata": metadata,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        user_profiles[user_id] = profile_data
+        asyncio.create_task(eventual_consistency_propagation("profile", user_id, profile_data))
+        
+        return CreateUserResponse(user_id=user_id, username=username)
+    
+    @strawberry.mutation
+    async def create_comment(self, post_id: str, content: str, author: str) -> CreateCommentResponse:
+        """Create a comment"""
+        comment_id = str(uuid.uuid4())
+        
+        comment_data = {
+            "id": comment_id,
+            "post_id": post_id,
+            "content": content,
+            "author": author,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        comments.append(comment_data)
+        
+        return CreateCommentResponse(comment_id=comment_id)
+
+# Create GraphQL schema and router
+schema = strawberry.Schema(query=Query, mutation=Mutation)
+graphql_app = GraphQLRouter(schema)
+
+# Mount GraphQL endpoint
+app.include_router(graphql_app, prefix="/graphql")
+
+# ============================================================================
+# XML Endpoints (Mirror REST API with XML serialization)
+# ============================================================================
+
+def dict_to_xml_response(data: Dict[str, Any], root_tag: str = "response") -> Response:
+    """Convert dict to XML response"""
+    xml = dicttoxml.dicttoxml(data, custom_root=root_tag, attr_type=False)
+    return Response(content=xml, media_type="application/xml")
+
+@app.post("/xml/orders", status_code=201)
+async def create_order_xml(order: OrderCreate, background_tasks: BackgroundTasks):
+    """Create a new order - XML response"""
+    order_id = str(uuid.uuid4())
+    
+    order_data = {
+        "id": order_id,
+        "product_id": order.product_id,
+        "quantity": order.quantity,
+        "metadata": order.metadata,
+        "status": OrderStatus.PENDING,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    
+    orders[order_id] = order_data
+    background_tasks.add_task(process_order_background, order_id)
+    
+    return dict_to_xml_response({"order_id": order_id, "status": OrderStatus.PENDING}, root_tag="order")
+
+@app.get("/xml/orders/{order_id}")
+async def get_order_xml(order_id: str):
+    """Get order status - XML response"""
+    if order_id not in orders:
+        return dict_to_xml_response({"error": "Order not found"}, root_tag="error")
+    
+    return dict_to_xml_response(orders[order_id], root_tag="order")
+
+@app.put("/xml/orders/{order_id}/ship")
+async def ship_order_xml(order_id: str):
+    """Ship order - XML response"""
+    if order_id not in orders:
+        return dict_to_xml_response({"error": "Order not found"}, root_tag="error")
+    
+    order = orders[order_id]
+    
+    if order["status"] != OrderStatus.COMPLETED:
+        return dict_to_xml_response({
+            "error": f"Cannot ship order with status '{order['status']}'. Order must be completed first."
+        }, root_tag="error")
+    
+    order["status"] = OrderStatus.SHIPPED
+    order["shipped_at"] = datetime.utcnow().isoformat()
+    order["updated_at"] = datetime.utcnow().isoformat()
+    
+    return dict_to_xml_response(order, root_tag="order")
+
+@app.post("/xml/jobs", status_code=202)
+async def create_job_xml(job: JobCreate, background_tasks: BackgroundTasks):
+    """Submit a job - XML response"""
+    job_id = str(uuid.uuid4())
+    
+    job_data = {
+        "id": job_id,
+        "job_type": job.job_type,
+        "parameters": job.parameters,
+        "status": JobStatus.QUEUED,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    jobs[job_id] = job_data
+    background_tasks.add_task(process_job_background, job_id, job.delay)
+    
+    return dict_to_xml_response({"job_id": job_id, "status": JobStatus.QUEUED}, root_tag="job")
+
+@app.get("/xml/jobs/{job_id}")
+async def get_job_xml(job_id: str):
+    """Get job status - XML response"""
+    if job_id not in jobs:
+        return dict_to_xml_response({"error": "Job not found"}, root_tag="error")
+    
+    return dict_to_xml_response(jobs[job_id], root_tag="job")
+
+@app.post("/xml/resources", status_code=202)
+async def create_resource_xml(resource: ResourceCreate, background_tasks: BackgroundTasks):
+    """Provision a resource - XML response"""
+    resource_id = str(uuid.uuid4())
+    
+    resource_data = {
+        "id": resource_id,
+        "resource_type": resource.resource_type,
+        "config": resource.config,
+        "status": ResourceStatus.PROVISIONING,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    
+    resources[resource_id] = resource_data
+    background_tasks.add_task(provision_resource_background, resource_id)
+    
+    return dict_to_xml_response({"resource_id": resource_id, "status": ResourceStatus.PROVISIONING}, root_tag="resource")
+
+@app.get("/xml/resources/{resource_id}")
+async def get_resource_xml(resource_id: str):
+    """Get resource status - XML response"""
+    if resource_id not in resources:
+        return dict_to_xml_response({"error": "Resource not found"}, root_tag="error")
+    
+    return dict_to_xml_response(resources[resource_id], root_tag="resource")
+
+@app.post("/xml/users", status_code=201)
+async def create_user_profile_xml(profile: ProfileCreate, background_tasks: BackgroundTasks):
+    """Create user profile - XML response"""
+    user_id = str(uuid.uuid4())
+    
+    profile_data = {
+        "id": user_id,
+        "username": profile.username,
+        "bio": profile.bio,
+        "email": profile.email,
+        "metadata": profile.metadata,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    user_profiles[user_id] = profile_data
+    background_tasks.add_task(eventual_consistency_propagation, "profile", user_id, profile_data)
+    
+    return dict_to_xml_response({"user_id": user_id, "username": profile.username}, root_tag="user")
+
+@app.get("/xml/users/{user_id}")
+async def get_user_profile_xml(user_id: str):
+    """Get user profile - XML response"""
+    if user_id not in user_profiles:
+        return dict_to_xml_response({"error": "User not found"}, root_tag="error")
+    
+    return dict_to_xml_response(user_profiles[user_id], root_tag="user")
+
+@app.post("/xml/comments", status_code=201)
+async def create_comment_xml(comment: CommentCreate):
+    """Create a comment - XML response"""
+    comment_id = str(uuid.uuid4())
+    
+    comment_data = {
+        "id": comment_id,
+        "post_id": comment.post_id,
+        "content": comment.content,
+        "author": comment.author,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    comments.append(comment_data)
+    
+    return dict_to_xml_response({"comment_id": comment_id}, root_tag="comment")
+
+@app.get("/xml/posts/{post_id}/comments")
+async def get_post_comments_xml(post_id: str):
+    """Get comments for a post - XML response"""
+    post_comments = [c for c in comments if c["post_id"] == post_id]
+    return dict_to_xml_response({"comments": post_comments}, root_tag="comments")
+
+@app.get("/xml/feed")
+async def get_user_feed_xml():
+    """Get activity feed - XML response"""
+    feed_items = []
+    
+    for user_id, profile in user_profiles.items():
+        feed_items.append({
+            "type": "user_joined",
+            "user_id": user_id,
+            "username": profile["username"],
+            "bio": profile.get("bio", ""),
+            "timestamp": profile["created_at"]
+        })
+    
+    feed_items.extend(activity_feed[-10:])
+    feed_items.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    
+    return dict_to_xml_response({"feed": feed_items[:20]}, root_tag="feed")
 
 if __name__ == "__main__":
     import uvicorn

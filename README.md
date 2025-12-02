@@ -1,26 +1,8 @@
-# ChaosForge
-Demo API that forges async chaos: state-dependent chains, eventual consistency, random failures. Built to stress-test BurpSuite extensions against the async hellscape that breaks traditional tooling.
+# ChaosForge - Async Demo API for BurpSuite Extensions
 
-# Async Demo API for BurpSuite Extensions
+Demo API designed to test **ChainJockey** and **SnitchLab** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
 
-Demo API designed to test **BurpExtension1** and **BurpExtension2** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
-
-ChaosForge - Where async workflows go to die (so your extensions don't have to)
-
-Demo API that throws everything broken about modern async at your tooling. State-dependent chains that fail halfway through. Resources that take their sweet time provisioning. Data that surfaces three endpoints later when you've stopped looking. The kind of eventually-consistent nightmare that makes traditional testing tools curl up and cry.
-
-Built to stress-test BurpExtension1's state handling and BurpExtension2's canary tracking against real-world async chaos.
-
-Features:
-- Multi-state workflows with random failures
-- Eventual consistency across delayed views
-- Retry-worthy flaky endpoints
-- Storage patterns that span request chains
-- Background processing that doesn't give a damn about your timeline
-
-Not a mock. Not a stub. A forge for tempering security tools against the async hellscape that is modern API architecture.
-
-Deploy it. Break against it. Ship tools that actually handle the chaos.
+**Supports three API formats:** REST/JSON, GraphQL, and XML
 
 ## Quick Start
 
@@ -29,11 +11,23 @@ Deploy it. Break against it. Ship tools that actually handle the chaos.
 pip install -r requirements.txt
 
 # Run the API
-python async_demo_api.py
+python ChaosForge.py
 ```
 
 API will be available at: `http://localhost:8000`  
-Interactive docs: `http://localhost:8000/docs`
+Interactive docs: 
+- REST/JSON: `http://localhost:8000/docs`
+- GraphQL: `http://localhost:8000/graphql`
+
+**📖 See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for complete GraphQL and XML documentation**
+
+## API Formats
+
+- **REST/JSON** at `/api/*` - Standard JSON endpoints
+- **GraphQL** at `/graphql` - Queries and mutations with interactive playground
+- **XML** at `/xml/*` - XML-serialized responses (mirrors REST structure)
+
+All three formats share the same business logic, async behavior, and storage.
 
 ## What This API Does
 
@@ -45,9 +39,9 @@ This API simulates **real-world async complexity** that breaks traditional testi
 - **Retry scenarios** - Endpoints that fail randomly for testing retry logic
 - **Storage & retrieval patterns** - Injected data surfaces in later requests
 
-## Testing BurpExtension1
+## Testing ChainJockey
 
-BurpExtension1 handles complex request chains with state dependencies. Here are the key test scenarios:
+ChainJockey handles complex request chains with state dependencies. Here are the key test scenarios:
 
 ### Scenario 1: Order Processing Workflow
 
@@ -73,7 +67,7 @@ BurpExtension1 handles complex request chains with state dependencies. Here are 
    → Returns 409 if wrong state
 ```
 
-**BurpExtension1 Config:**
+**ChainJockey Config:**
 ```json
 {
   "flow": [
@@ -132,9 +126,9 @@ GET /api/flaky
 → Test retry logic with exponential backoff
 ```
 
-## Testing BurpExtension2
+## Testing SnitchLab
 
-BurpExtension2 tracks canaries across async storage and retrieval. Here are the key patterns:
+SnitchLab tracks canaries across async storage and retrieval. Here are the key patterns:
 
 ### Pattern 1: User Profile Storage
 
@@ -161,7 +155,7 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
    → DELAYED 10s: Canary appears in analytics last
 ```
 
-**BurpExtension2 should track:** Where `CANARY_XSS_12345` surfaces across all these endpoints.
+**SnitchLab should track:** Where `CANARY_XSS_12345` surfaces across all these endpoints.
 
 ### Pattern 2: Comment Storage (Stored XSS Pattern)
 
@@ -179,7 +173,7 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
    → Canary appears in recent comments
 ```
 
-**BurpExtension2 should track:** Stored canary appearing in different comment views.
+**SnitchLab should track:** Stored canary appearing in different comment views.
 
 ### Pattern 3: Webhook Callback Tracking
 
@@ -207,23 +201,25 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
 
 ## Endpoint Reference
 
-### Order Endpoints
+### REST/JSON Endpoints (`/api/*`)
+
+#### Order Endpoints
 - `POST /api/orders` - Create order (async processing starts)
 - `GET /api/orders/{order_id}` - Get order status
 - `PUT /api/orders/{order_id}/ship` - Ship order (requires status="completed")
 - `DELETE /api/orders/{order_id}` - Cancel order
 
-### Job Endpoints
+#### Job Endpoints
 - `POST /api/jobs` - Submit job to queue
 - `GET /api/jobs/{job_id}` - Get job status
 - `GET /api/jobs/{job_id}/result` - Get job result (requires status="completed")
 
-### Resource Endpoints
+#### Resource Endpoints
 - `POST /api/resources` - Provision resource (async)
 - `GET /api/resources/{resource_id}` - Get resource status
 - `POST /api/resources/{resource_id}/connect` - Connect (requires status="ready")
 
-### User Profile Endpoints
+#### User Profile Endpoints
 - `POST /api/users` - Create user profile (eventual consistency)
 - `GET /api/users/{user_id}` - Get profile (immediate view)
 - `GET /api/users/{user_id}/public` - Get public profile (cached, 2s delay)
@@ -231,20 +227,41 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
 - `GET /api/search?q=<query>` - Search profiles (5s delay)
 - `GET /api/analytics/users` - User analytics (10s delay)
 
-### Comment Endpoints
+#### Comment Endpoints
 - `POST /api/comments` - Create comment (stored unsanitized)
 - `GET /api/posts/{post_id}/comments` - Get post comments
 - `GET /api/comments/recent` - Get recent comments
 
-### Webhook Endpoints
+#### Webhook Endpoints
 - `POST /api/webhooks/register` - Register webhook
 - `GET /api/webhooks/events` - Get webhook events
 
-### Testing Utilities
+#### Testing Utilities
 - `GET /api/flaky` - Randomly fails (50% rate)
 - `GET /api/rate-limited` - Randomly rate-limits (30% rate)
 - `GET /api/health` - Health check with stats
 - `POST /api/reset` - Reset all state
+
+### GraphQL Endpoint (`/graphql`)
+
+Single endpoint for all queries and mutations. Interactive playground at `http://localhost:8000/graphql`
+
+**Queries:** `order`, `job`, `resource`, `user`, `commentsForPost`, `allUsers`  
+**Mutations:** `createOrder`, `shipOrder`, `createJob`, `createResource`, `createUser`, `createComment`
+
+See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for complete examples.
+
+### XML Endpoints (`/xml/*`)
+
+Mirrors REST structure with XML responses:
+- `/xml/orders`, `/xml/orders/{id}`, `/xml/orders/{id}/ship`
+- `/xml/jobs`, `/xml/jobs/{id}`
+- `/xml/resources`, `/xml/resources/{id}`
+- `/xml/users`, `/xml/users/{id}`
+- `/xml/comments`, `/xml/posts/{id}/comments`
+- `/xml/feed`
+
+See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for XML examples.
 
 ## State Transition Details
 
@@ -273,13 +290,13 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
 
 ## Tips for Testing
 
-### For BurpExtension1:
+### For ChainJockey:
 1. Start with the order flow - it has the most complex state dependencies
 2. Test retry logic on `/api/flaky` endpoint
 3. Try chaining resource provisioning → connection
 4. Experiment with different delay configurations
 
-### For BurpExtension2:
+### For SnitchLab:
 1. Use distinct canary patterns per test: `CANARY_TEST1_001`, `CANARY_TEST2_002`, etc.
 2. Monitor the feed endpoint - it aggregates data from multiple sources
 3. Test the eventual consistency pattern with user profiles
@@ -301,7 +318,7 @@ BurpExtension2 tracks canaries across async storage and retrieval. Here are the 
 
 ## Example cURL Commands
 
-### BurpExtension1 Flow Test
+### ChainJockey Flow Test
 ```bash
 # Create order
 ORDER_ID=$(curl -s -X POST http://localhost:8000/api/orders \
@@ -317,7 +334,7 @@ sleep 4
 curl -X PUT http://localhost:8000/api/orders/$ORDER_ID/ship
 ```
 
-### BurpExtension2 Canary Test
+### SnitchLab Canary Test
 ```bash
 # Create user with canary
 USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
@@ -342,4 +359,3 @@ curl http://localhost:8000/api/analytics/users
 ## License
 
 MIT - Built for testing BurpSuite extensions in realistic async scenarios.
-
