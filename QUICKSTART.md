@@ -91,6 +91,28 @@ curl -X POST http://localhost:8000/graphql \
 curl http://localhost:8000/xml/feed | grep CANARY_XSS_12345
 ```
 
+## SnitchLab Detonation Testing
+
+**Scenario**: Verify probe pair classification (Stored vs Detonated)
+
+Known payloads like `{{77*77}}` are replaced with fake detonation output (`5929`) on retrieval. No code execution — static lookup only.
+
+```bash
+# Inject SSTI probe
+USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ssti_test", "bio": "@@marker@@{{77*77}}"}' | jq -r '.user_id')
+
+# Retrieve - should show "@@marker@@5929"
+curl -s http://localhost:8000/api/users/$USER_ID | jq '.bio'
+
+# Works across all formats
+curl -s http://localhost:8000/xml/users/$USER_ID
+curl -s -X POST http://localhost:8000/graphql \
+  -H "Content-Type: application/json" \
+  -d "{\"query\": \"query { user(userId: \\\"$USER_ID\\\") { bio } }\"}"
+```
+
 ## Documentation
 
 - **Main README**: Complete testing scenarios

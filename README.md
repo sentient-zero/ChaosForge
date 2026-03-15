@@ -38,6 +38,7 @@ This API simulates **real-world async complexity** that breaks traditional testi
 - **Eventual consistency** - Data appears in different views at different times
 - **Retry scenarios** - Endpoints that fail randomly for testing retry logic
 - **Storage & retrieval patterns** - Injected data surfaces in later requests
+- **Fake detonation** - Known payload patterns (SSTI, EL injection) return simulated execution output on retrieval
 
 ## Testing ChainJockey
 
@@ -199,6 +200,46 @@ SnitchLab tracks canaries across async storage and retrieval. Here are the key p
 5. Track which canaries surface where and when
 ```
 
+### Pattern 5: Fake Detonation (Probe Pair Testing)
+
+**The Challenge:** SnitchLab's probe pair system classifies findings as Stored vs Detonated. ChaosForge simulates server-side template evaluation so probes that expect transformed output (e.g. `{{77*77}}` → `5929`) get a Detonated classification instead of Stored.
+
+**How it works:** Values are stored verbatim in memory. On retrieval, known payload substrings are replaced with their expected detonation output via a static lookup table — no actual code execution occurs.
+
+**Supported payload/output pairs:**
+
+| Payload | Detonation Output |
+|---|---|
+| `{{77*77}}` | `5929` |
+| `{{7*7}}` | `49` |
+| `{{7*'7'}}` | `7777777` |
+| `${7*7}` | `49` |
+| `#{7*7}` | `49` |
+| `<%=7*7%>` | `49` |
+| `${{7*7}}` | `49` |
+| `{{config}}` | `<Config {'ENV': 'production'}>` (HTML-encoded) |
+| `{{self}}` | `<TemplateReference None>` (HTML-encoded) |
+| `${T(java.lang.Runtime).getRuntime()}` | `java.lang.Runtime@deadbeef` |
+| `SL_DETONATE_TEST` | `SL_DETONATE_CONFIRMED` |
+
+**Test flow:**
+```
+1. POST /api/users
+   Body: {"username": "ssti_test", "bio": "@@marker@@{{77*77}}"}
+   → Stored verbatim: bio = "@@marker@@{{77*77}}"
+
+2. GET /api/users/{user_id}
+   → Response bio = "@@marker@@5929"
+   → SnitchLab sees marker + "5929" instead of "{{77*77}}"
+   → Classification: Detonated
+
+3. Same substitution occurs across all retrieval endpoints:
+   /api/users/{id}/public, /api/feed, /api/search, /api/analytics/users
+   And across all formats: REST, GraphQL, XML
+```
+
+**SnitchLab should track:** Marker appearing with detonation signature instead of original payload, triggering Detonated classification across all endpoints and formats.
+
 ## Endpoint Reference
 
 ### REST/JSON Endpoints (`/api/*`)
@@ -302,6 +343,8 @@ See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for XML examples.
 3. Test the eventual consistency pattern with user profiles
 4. Try injecting canaries in different fields (bio, email, metadata)
 5. Check the analytics endpoint last (10s delay)
+6. Test probe pair detonation with SSTI payloads like `{{77*77}}` in bio/comment fields
+7. Use `SL_DETONATE_TEST` as a quick sanity check for the detonation pipeline
 
 ### General:
 - Use `/api/reset` between test runs to clear state
@@ -313,6 +356,7 @@ See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for XML examples.
 - **In-memory storage** - Data doesn't persist between restarts
 - **Background tasks** - State transitions happen via FastAPI BackgroundTasks
 - **Async/await** - Proper async support for realistic delays
+- **Fake detonation** - Output-only substitution via static lookup table; stored values are never modified
 - **No authentication** - Intentionally insecure for testing
 - **CORS enabled** - Can be called from browser
 
@@ -354,6 +398,26 @@ curl "http://localhost:8000/api/search?q=CANARY_XSS_12345"
 # Wait for analytics
 sleep 11
 curl http://localhost:8000/api/analytics/users
+```
+
+### SnitchLab Detonation Test
+```bash
+# Create user with SSTI probe payload
+USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ssti_test", "bio": "@@marker@@{{77*77}}"}' | jq -r '.user_id')
+
+# Retrieve - bio should contain "@@marker@@5929" (fake detonation)
+curl -s http://localhost:8000/api/users/$USER_ID | jq '.bio'
+# → "@@marker@@5929"
+
+# Same detonation in comments
+COMMENT_ID=$(curl -s -X POST http://localhost:8000/api/comments \
+  -H "Content-Type: application/json" \
+  -d '{"post_id": "post1", "content": "SL_DETONATE_TEST", "author": "tester"}' | jq -r '.comment_id')
+
+curl -s http://localhost:8000/api/posts/post1/comments | jq '.comments[0].content'
+# → "SL_DETONATE_CONFIRMED"
 ```
 
 ## License

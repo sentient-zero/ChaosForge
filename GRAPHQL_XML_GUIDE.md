@@ -172,6 +172,26 @@ mutation CreateUser {
 }
 ```
 
+#### Create User with Detonation Probe
+```graphql
+mutation CreateUserSSTI {
+  createUser(
+    username: "ssti_test"
+    bio: "@@marker@@{{77*77}}"
+  ) {
+    userId
+    username
+  }
+}
+
+# Then query — bio will return "@@marker@@5929" (fake detonation)
+query CheckDetonation {
+  user(userId: "...") {
+    bio
+  }
+}
+```
+
 #### Create Comment
 ```graphql
 mutation CreateComment {
@@ -354,6 +374,27 @@ curl http://localhost:8000/xml/feed
 
 SnitchLab should track canaries across XML responses just like JSON.
 
+### Testing Fake Detonation (XML)
+
+Probe pair payloads are also substituted in XML responses:
+
+```bash
+# Create user with SSTI probe via XML endpoint
+curl -X POST http://localhost:8000/xml/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "ssti_xml_test",
+    "bio": "@@marker@@{{77*77}}"
+  }'
+
+# Retrieve — <bio> will contain "@@marker@@5929"
+curl http://localhost:8000/xml/users/{user_id}
+# → <bio>@@marker@@5929</bio>
+
+# Also appears detonated in the XML feed
+curl http://localhost:8000/xml/feed
+```
+
 ---
 
 ## Why Multiple Formats?
@@ -435,6 +476,28 @@ curl -X POST http://localhost:8000/graphql \
 curl http://localhost:8000/xml/feed
 ```
 
+### Scenario 4: Cross-Format Detonation
+
+Inject a probe payload via one format, confirm detonation across all three:
+
+```bash
+# Create via REST with SSTI probe
+USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "xfmt", "bio": "@@marker@@{{77*77}}"}' | jq -r '.user_id')
+
+# Verify detonation in REST — should show "@@marker@@5929"
+curl -s http://localhost:8000/api/users/$USER_ID | jq '.bio'
+
+# Verify detonation in GraphQL
+curl -s -X POST http://localhost:8000/graphql \
+  -H "Content-Type: application/json" \
+  -d "{\"query\": \"query { user(userId: \\\"$USER_ID\\\") { bio } }\"}"
+
+# Verify detonation in XML
+curl -s http://localhost:8000/xml/users/$USER_ID
+```
+
 ---
 
 ## Interactive Testing
@@ -457,6 +520,7 @@ Visit `http://localhost:8000/docs` for the standard FastAPI Swagger interface (J
 
 - **Shared logic**: All three formats use the same business logic and storage
 - **Same async behavior**: State transitions, delays, and eventual consistency work identically across formats
+- **Fake detonation**: Known payload patterns are substituted on retrieval across all formats via the same `detonate_obj()` function
 - **No authentication**: Intentionally insecure for testing
 - **Error handling**: GraphQL uses exceptions, REST/XML use HTTP status codes
 
@@ -469,3 +533,4 @@ Visit `http://localhost:8000/docs` for the standard FastAPI Swagger interface (J
 3. **Mixed workflows**: Create in one format, query in another
 4. **XML parsing**: Look for XXE vulnerabilities in XML parsing logic
 5. **GraphQL injection**: Test for query depth limits and injection points
+6. **Fake detonation**: Use SSTI payloads like `{{77*77}}` in any string field — all retrieval endpoints return the substituted output (`5929`) across all formats
