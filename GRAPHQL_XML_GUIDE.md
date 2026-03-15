@@ -223,7 +223,7 @@ curl -X POST http://localhost:8000/graphql \
   }'
 ```
 
-### Testing with ChainJockey
+### Testing with [ChainJockey](https://github.com/sentient-zero/ChainJockey)
 
 GraphQL is perfect for testing batched operations and complex state chains:
 
@@ -244,7 +244,7 @@ query CheckOrder {
 }
 ```
 
-**ChainJockey Use Case:**
+**[ChainJockey](https://github.com/sentient-zero/ChainJockey) Use Case:**
 1. Mutation to create order → Extract `orderId`
 2. Query to poll status → Retry until `status="completed"`
 3. Mutation to ship → Execute when ready
@@ -353,7 +353,7 @@ All these mirror their REST equivalents:
 #### Feed
 - `GET /xml/feed` - Get activity feed
 
-### Testing with SnitchLab
+### Testing with [SnitchLab](https://github.com/sentient-zero/SnitchLab)
 
 XML endpoints are great for tracking canaries in XML-formatted responses:
 
@@ -372,7 +372,7 @@ curl http://localhost:8000/xml/users/{user_id}
 curl http://localhost:8000/xml/feed
 ```
 
-SnitchLab should track canaries across XML responses just like JSON.
+[SnitchLab](https://github.com/sentient-zero/SnitchLab) should track canaries across XML responses just like JSON.
 
 ### Testing Fake Detonation (XML)
 
@@ -407,19 +407,19 @@ curl http://localhost:8000/xml/feed
 - **Batch operations**: Query multiple resources in one request
 - **Flexible queries**: Only request fields you need
 - **Use case**: Testing complex state dependencies with nested queries
-- **ChainJockey benefit**: Can chain mutations and queries in single requests
+- **[ChainJockey](https://github.com/sentient-zero/ChainJockey) benefit**: Can chain mutations and queries in single requests
 
 ### XML
 - **Legacy systems**: Many older APIs use XML
 - **Different parsing**: XML parsers have different vulnerabilities (XXE, etc.)
 - **Use case**: Testing extension handling of non-JSON responses
-- **SnitchLab benefit**: Track canaries across different serialization formats
+- **[SnitchLab](https://github.com/sentient-zero/SnitchLab) benefit**: Track canaries across different serialization formats
 
 ---
 
 ## Testing Scenarios
 
-### Scenario 1: GraphQL State Chain (ChainJockey)
+### Scenario 1: GraphQL State Chain ([ChainJockey](https://github.com/sentient-zero/ChainJockey))
 
 ```graphql
 # 1. Create order
@@ -445,7 +445,7 @@ mutation {
 }
 ```
 
-### Scenario 2: XML Canary Tracking (SnitchLab)
+### Scenario 2: XML Canary Tracking ([SnitchLab](https://github.com/sentient-zero/SnitchLab))
 
 ```bash
 # Inject canary via XML endpoint
@@ -528,8 +528,8 @@ Visit `http://localhost:8000/docs` for the standard FastAPI Swagger interface (J
 
 ## Tips
 
-1. **ChainJockey**: GraphQL mutations are great for testing batched operations
-2. **SnitchLab**: Test canary tracking across all three formats
+1. **[ChainJockey](https://github.com/sentient-zero/ChainJockey)**: GraphQL mutations are great for testing batched operations
+2. **[SnitchLab](https://github.com/sentient-zero/SnitchLab)**: Test canary tracking across all three formats
 3. **Mixed workflows**: Create in one format, query in another
 4. **XML parsing**: Look for XXE vulnerabilities in XML parsing logic
 5. **GraphQL injection**: Test for query depth limits and injection points

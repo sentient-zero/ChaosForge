@@ -53,7 +53,7 @@ curl -X POST http://localhost:8000/xml/orders \
   -d '{"product_id": "PROD123", "quantity": 2}'
 ```
 
-## ChainJockey Testing
+## [ChainJockey](https://github.com/sentient-zero/ChainJockey) Testing
 
 **Scenario**: Create order → Wait for completion → Ship
 
@@ -70,7 +70,7 @@ watch -n 1 "curl -s http://localhost:8000/api/orders/$ORDER_ID | jq '.status'"
 curl -X PUT http://localhost:8000/api/orders/$ORDER_ID/ship
 ```
 
-## SnitchLab Testing
+## [SnitchLab](https://github.com/sentient-zero/SnitchLab) Testing
 
 **Scenario**: Track canary across formats
 
@@ -91,7 +91,7 @@ curl -X POST http://localhost:8000/graphql \
 curl http://localhost:8000/xml/feed | grep CANARY_XSS_12345
 ```
 
-## SnitchLab Detonation Testing
+## [SnitchLab](https://github.com/sentient-zero/SnitchLab) Detonation Testing
 
 **Scenario**: Verify probe pair classification (Stored vs Detonated)
 

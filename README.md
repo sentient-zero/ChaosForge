@@ -1,6 +1,6 @@
 # ChaosForge - Async Demo API for BurpSuite Extensions
 
-Demo API designed to test **ChainJockey** and **SnitchLab** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
+Demo API designed to test **[ChainJockey](https://github.com/sentient-zero/ChainJockey)** and **[SnitchLab](https://github.com/sentient-zero/SnitchLab)** BurpSuite extensions with realistic async workflows, state transitions, and storage patterns.
 
 **Supports three API formats:** REST/JSON, GraphQL, and XML
 
@@ -40,7 +40,7 @@ This API simulates **real-world async complexity** that breaks traditional testi
 - **Storage & retrieval patterns** - Injected data surfaces in later requests
 - **Fake detonation** - Known payload patterns (SSTI, EL injection) return simulated execution output on retrieval
 
-## Testing ChainJockey
+## Testing [ChainJockey](https://github.com/sentient-zero/ChainJockey)
 
 ChainJockey handles complex request chains with state dependencies. Here are the key test scenarios:
 
@@ -127,7 +127,7 @@ GET /api/flaky
 → Test retry logic with exponential backoff
 ```
 
-## Testing SnitchLab
+## Testing [SnitchLab](https://github.com/sentient-zero/SnitchLab)
 
 SnitchLab tracks canaries across async storage and retrieval. Here are the key patterns:
 
@@ -331,13 +331,13 @@ See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for XML examples.
 
 ## Tips for Testing
 
-### For ChainJockey:
+### For [ChainJockey](https://github.com/sentient-zero/ChainJockey):
 1. Start with the order flow - it has the most complex state dependencies
 2. Test retry logic on `/api/flaky` endpoint
 3. Try chaining resource provisioning → connection
 4. Experiment with different delay configurations
 
-### For SnitchLab:
+### For [SnitchLab](https://github.com/sentient-zero/SnitchLab):
 1. Use distinct canary patterns per test: `CANARY_TEST1_001`, `CANARY_TEST2_002`, etc.
 2. Monitor the feed endpoint - it aggregates data from multiple sources
 3. Test the eventual consistency pattern with user profiles
@@ -362,7 +362,7 @@ See [GRAPHQL_XML_GUIDE.md](GRAPHQL_XML_GUIDE.md) for XML examples.
 
 ## Example cURL Commands
 
-### ChainJockey Flow Test
+### [ChainJockey](https://github.com/sentient-zero/ChainJockey) Flow Test
 ```bash
 # Create order
 ORDER_ID=$(curl -s -X POST http://localhost:8000/api/orders \
@@ -378,7 +378,7 @@ sleep 4
 curl -X PUT http://localhost:8000/api/orders/$ORDER_ID/ship
 ```
 
-### SnitchLab Canary Test
+### [SnitchLab](https://github.com/sentient-zero/SnitchLab) Canary Test
 ```bash
 # Create user with canary
 USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
@@ -400,7 +400,7 @@ sleep 11
 curl http://localhost:8000/api/analytics/users
 ```
 
-### SnitchLab Detonation Test
+### [SnitchLab](https://github.com/sentient-zero/SnitchLab) Detonation Test
 ```bash
 # Create user with SSTI probe payload
 USER_ID=$(curl -s -X POST http://localhost:8000/api/users \
