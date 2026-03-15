@@ -70,6 +70,49 @@ activity_feed: List[Dict[str, Any]] = []
 eventual_data: Dict[str, Dict[str, Any]] = defaultdict(dict)
 
 # ============================================================================
+# Fake Detonation Map (SnitchLab Probe Pair Testing)
+# ============================================================================
+# Simulates server-side template/expression evaluation WITHOUT actually
+# executing anything. Stored values stay verbatim in memory; substitution
+# happens only on retrieval. This lets SnitchLab classify findings as
+# "Detonated" when the expected output appears instead of the original payload.
+
+FAKE_DETONATIONS = {
+    # SSTI / template expressions
+    "{{77*77}}":            "5929",
+    "{{7*7}}":              "49",
+    "{{7*'7'}}":            "7777777",
+    "${7*7}":               "49",
+    "#{7*7}":               "49",
+    "<%=7*7%>":             "49",
+    "${{7*7}}":             "49",
+    "{{config}}":           "&lt;Config {&#x27;ENV&#x27;: &#x27;production&#x27;}&gt;",
+    "{{self}}":             "&lt;TemplateReference None&gt;",
+    # EL injection
+    "${T(java.lang.Runtime).getRuntime()}": "java.lang.Runtime@deadbeef",
+    # SnitchLab built-in test probe
+    "SL_DETONATE_TEST":     "SL_DETONATE_CONFIRMED",
+}
+
+
+def fake_detonate(value: str) -> str:
+    """Replace known payload patterns with fake detonation output."""
+    for payload, output in FAKE_DETONATIONS.items():
+        value = value.replace(payload, output)
+    return value
+
+
+def detonate_obj(obj):
+    """Recursively apply fake_detonate to all string values in a dict/list."""
+    if isinstance(obj, str):
+        return fake_detonate(obj)
+    elif isinstance(obj, dict):
+        return {k: detonate_obj(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [detonate_obj(item) for item in obj]
+    return obj
+
+# ============================================================================
 # Request/Response Models
 # ============================================================================
 
@@ -228,7 +271,7 @@ async def get_order(order_id: str):
     if order_id not in orders:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    return orders[order_id]
+    return detonate_obj(orders[order_id])
 
 @app.put("/api/orders/{order_id}/ship")
 async def ship_order(order_id: str):
@@ -248,7 +291,7 @@ async def ship_order(order_id: str):
     order["shipped_at"] = datetime.utcnow().isoformat()
     order["updated_at"] = datetime.utcnow().isoformat()
     
-    return order
+    return detonate_obj(order)
 
 @app.delete("/api/orders/{order_id}")
 async def cancel_order(order_id: str):
@@ -294,7 +337,7 @@ async def get_job(job_id: str):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return jobs[job_id]
+    return detonate_obj(jobs[job_id])
 
 @app.get("/api/jobs/{job_id}/result")
 async def get_job_result(job_id: str):
@@ -310,7 +353,7 @@ async def get_job_result(job_id: str):
             detail=f"Job result not available. Current status: {job['status']}"
         )
     
-    return job.get("result", {})
+    return detonate_obj(job.get("result", {}))
 
 # ============================================================================
 # Resource Provisioning Endpoints (ChainJockey Testing)
@@ -343,7 +386,7 @@ async def get_resource(resource_id: str):
     if resource_id not in resources:
         raise HTTPException(status_code=404, detail="Resource not found")
     
-    return resources[resource_id]
+    return detonate_obj(resources[resource_id])
 
 @app.post("/api/resources/{resource_id}/connect")
 async def connect_to_resource(resource_id: str):
@@ -395,7 +438,7 @@ async def get_user_profile(user_id: str):
     if user_id not in user_profiles:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return user_profiles[user_id]
+    return detonate_obj(user_profiles[user_id])
 
 @app.get("/api/users/{user_id}/public")
 async def get_user_public_profile(user_id: str):
@@ -407,11 +450,11 @@ async def get_user_public_profile(user_id: str):
     
     profile = eventual_data[profile_key][user_id]
     # Return only public fields
-    return {
+    return detonate_obj({
         "username": profile["username"],
         "bio": profile["bio"],
         "created_at": profile["created_at"]
-    }
+    })
 
 @app.get("/api/feed")
 async def get_user_feed():
@@ -434,7 +477,7 @@ async def get_user_feed():
     # Sort by timestamp
     feed_items.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     
-    return {"feed": feed_items[:20]}
+    return detonate_obj({"feed": feed_items[:20]})
 
 @app.get("/api/search")
 async def search_profiles(q: str):
@@ -451,7 +494,7 @@ async def search_profiles(q: str):
         if q.lower() in search_text:
             results.append(profile)
     
-    return {"results": results}
+    return detonate_obj({"results": results})
 
 # ============================================================================
 # Comments Endpoints (SnitchLab Testing - Stored XSS Patterns)
@@ -478,12 +521,12 @@ async def create_comment(comment: CommentCreate):
 async def get_post_comments(post_id: str):
     """Get comments for a post - returns stored content including canaries"""
     post_comments = [c for c in comments if c["post_id"] == post_id]
-    return {"comments": post_comments}
+    return detonate_obj({"comments": post_comments})
 
 @app.get("/api/comments/recent")
 async def get_recent_comments():
     """Get recent comments across all posts"""
-    return {"comments": comments[-10:]}
+    return detonate_obj({"comments": comments[-10:]})
 
 # ============================================================================
 # Analytics/Reporting Endpoints (SnitchLab Testing - Delayed Appearance)
@@ -499,14 +542,14 @@ async def get_user_analytics():
     
     users = list(eventual_data[profile_key].values())
     
-    return {
+    return detonate_obj({
         "total_users": len(users),
         "users": users,
         "aggregated_data": {
             "with_bio": sum(1 for u in users if u.get("bio")),
             "with_email": sum(1 for u in users if u.get("email"))
         }
-    }
+    })
 
 # ============================================================================
 # Webhook Simulation (SnitchLab Testing - Callback Tracking)
@@ -531,7 +574,7 @@ async def register_webhook(url: str, event_type: str):
 @app.get("/api/webhooks/events")
 async def get_webhook_events():
     """Get recent webhook events - shows registered URLs including canaries"""
-    return {"webhooks": webhooks}
+    return detonate_obj({"webhooks": webhooks})
 
 # ============================================================================
 # Error Simulation Endpoints (Testing Retry Logic)
@@ -694,17 +737,18 @@ class Query:
         order = orders.get(order_id)
         if not order:
             return None
+        d = detonate_obj(order)
         return OrderType(
-            id=order["id"],
-            product_id=order["product_id"],
-            quantity=order["quantity"],
-            status=order["status"],
-            created_at=order["created_at"],
-            updated_at=order["updated_at"],
-            metadata=str(order.get("metadata")) if order.get("metadata") else None,
-            completed_at=order.get("completed_at"),
-            shipped_at=order.get("shipped_at"),
-            error=order.get("error")
+            id=d["id"],
+            product_id=d["product_id"],
+            quantity=d["quantity"],
+            status=d["status"],
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
+            metadata=str(d.get("metadata")) if d.get("metadata") else None,
+            completed_at=d.get("completed_at"),
+            shipped_at=d.get("shipped_at"),
+            error=d.get("error")
         )
     
     @strawberry.field
@@ -713,16 +757,17 @@ class Query:
         job = jobs.get(job_id)
         if not job:
             return None
+        d = detonate_obj(job)
         return JobType(
-            id=job["id"],
-            job_type=job["job_type"],
-            status=job["status"],
-            created_at=job["created_at"],
-            parameters=str(job.get("parameters")) if job.get("parameters") else None,
-            started_at=job.get("started_at"),
-            completed_at=job.get("completed_at"),
-            result=str(job.get("result")) if job.get("result") else None,
-            error=job.get("error")
+            id=d["id"],
+            job_type=d["job_type"],
+            status=d["status"],
+            created_at=d["created_at"],
+            parameters=str(d.get("parameters")) if d.get("parameters") else None,
+            started_at=d.get("started_at"),
+            completed_at=d.get("completed_at"),
+            result=str(d.get("result")) if d.get("result") else None,
+            error=d.get("error")
         )
     
     @strawberry.field
@@ -731,15 +776,16 @@ class Query:
         resource = resources.get(resource_id)
         if not resource:
             return None
+        d = detonate_obj(resource)
         return ResourceType(
-            id=resource["id"],
-            resource_type=resource["resource_type"],
-            status=resource["status"],
-            created_at=resource["created_at"],
-            updated_at=resource["updated_at"],
-            config=str(resource.get("config")) if resource.get("config") else None,
-            endpoint=resource.get("endpoint"),
-            error=resource.get("error")
+            id=d["id"],
+            resource_type=d["resource_type"],
+            status=d["status"],
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
+            config=str(d.get("config")) if d.get("config") else None,
+            endpoint=d.get("endpoint"),
+            error=d.get("error")
         )
     
     @strawberry.field
@@ -748,19 +794,20 @@ class Query:
         profile = user_profiles.get(user_id)
         if not profile:
             return None
+        d = detonate_obj(profile)
         return UserProfileType(
-            id=profile["id"],
-            username=profile["username"],
-            created_at=profile["created_at"],
-            bio=profile.get("bio"),
-            email=profile.get("email"),
-            metadata=str(profile.get("metadata")) if profile.get("metadata") else None
+            id=d["id"],
+            username=d["username"],
+            created_at=d["created_at"],
+            bio=d.get("bio"),
+            email=d.get("email"),
+            metadata=str(d.get("metadata")) if d.get("metadata") else None
         )
     
     @strawberry.field
     async def comments_for_post(self, post_id: str) -> List[CommentType]:
         """Get comments for a post"""
-        post_comments = [c for c in comments if c["post_id"] == post_id]
+        post_comments = [detonate_obj(c) for c in comments if c["post_id"] == post_id]
         return [
             CommentType(
                 id=c["id"],
@@ -777,14 +824,14 @@ class Query:
         """Get all user profiles"""
         return [
             UserProfileType(
-                id=p["id"],
-                username=p["username"],
-                created_at=p["created_at"],
-                bio=p.get("bio"),
-                email=p.get("email"),
-                metadata=str(p.get("metadata")) if p.get("metadata") else None
+                id=d["id"],
+                username=d["username"],
+                created_at=d["created_at"],
+                bio=d.get("bio"),
+                email=d.get("email"),
+                metadata=str(d.get("metadata")) if d.get("metadata") else None
             )
-            for p in user_profiles.values()
+            for d in (detonate_obj(p) for p in user_profiles.values())
         ]
 
 @strawberry.type
@@ -826,15 +873,16 @@ class Mutation:
         order["shipped_at"] = datetime.utcnow().isoformat()
         order["updated_at"] = datetime.utcnow().isoformat()
         
+        d = detonate_obj(order)
         return OrderType(
-            id=order["id"],
-            product_id=order["product_id"],
-            quantity=order["quantity"],
-            status=order["status"],
-            created_at=order["created_at"],
-            updated_at=order["updated_at"],
-            metadata=str(order.get("metadata")) if order.get("metadata") else None,
-            shipped_at=order.get("shipped_at")
+            id=d["id"],
+            product_id=d["product_id"],
+            quantity=d["quantity"],
+            status=d["status"],
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
+            metadata=str(d.get("metadata")) if d.get("metadata") else None,
+            shipped_at=d.get("shipped_at")
         )
     
     @strawberry.mutation
@@ -952,7 +1000,7 @@ async def get_order_xml(order_id: str):
     if order_id not in orders:
         return dict_to_xml_response({"error": "Order not found"}, root_tag="error")
     
-    return dict_to_xml_response(orders[order_id], root_tag="order")
+    return dict_to_xml_response(detonate_obj(orders[order_id]), root_tag="order")
 
 @app.put("/xml/orders/{order_id}/ship")
 async def ship_order_xml(order_id: str):
@@ -971,7 +1019,7 @@ async def ship_order_xml(order_id: str):
     order["shipped_at"] = datetime.utcnow().isoformat()
     order["updated_at"] = datetime.utcnow().isoformat()
     
-    return dict_to_xml_response(order, root_tag="order")
+    return dict_to_xml_response(detonate_obj(order), root_tag="order")
 
 @app.post("/xml/jobs", status_code=202)
 async def create_job_xml(job: JobCreate, background_tasks: BackgroundTasks):
@@ -997,7 +1045,7 @@ async def get_job_xml(job_id: str):
     if job_id not in jobs:
         return dict_to_xml_response({"error": "Job not found"}, root_tag="error")
     
-    return dict_to_xml_response(jobs[job_id], root_tag="job")
+    return dict_to_xml_response(detonate_obj(jobs[job_id]), root_tag="job")
 
 @app.post("/xml/resources", status_code=202)
 async def create_resource_xml(resource: ResourceCreate, background_tasks: BackgroundTasks):
@@ -1024,7 +1072,7 @@ async def get_resource_xml(resource_id: str):
     if resource_id not in resources:
         return dict_to_xml_response({"error": "Resource not found"}, root_tag="error")
     
-    return dict_to_xml_response(resources[resource_id], root_tag="resource")
+    return dict_to_xml_response(detonate_obj(resources[resource_id]), root_tag="resource")
 
 @app.post("/xml/users", status_code=201)
 async def create_user_profile_xml(profile: ProfileCreate, background_tasks: BackgroundTasks):
@@ -1051,7 +1099,7 @@ async def get_user_profile_xml(user_id: str):
     if user_id not in user_profiles:
         return dict_to_xml_response({"error": "User not found"}, root_tag="error")
     
-    return dict_to_xml_response(user_profiles[user_id], root_tag="user")
+    return dict_to_xml_response(detonate_obj(user_profiles[user_id]), root_tag="user")
 
 @app.post("/xml/comments", status_code=201)
 async def create_comment_xml(comment: CommentCreate):
@@ -1074,7 +1122,7 @@ async def create_comment_xml(comment: CommentCreate):
 async def get_post_comments_xml(post_id: str):
     """Get comments for a post - XML response"""
     post_comments = [c for c in comments if c["post_id"] == post_id]
-    return dict_to_xml_response({"comments": post_comments}, root_tag="comments")
+    return dict_to_xml_response(detonate_obj({"comments": post_comments}), root_tag="comments")
 
 @app.get("/xml/feed")
 async def get_user_feed_xml():
@@ -1093,7 +1141,7 @@ async def get_user_feed_xml():
     feed_items.extend(activity_feed[-10:])
     feed_items.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     
-    return dict_to_xml_response({"feed": feed_items[:20]}, root_tag="feed")
+    return dict_to_xml_response(detonate_obj({"feed": feed_items[:20]}), root_tag="feed")
 
 if __name__ == "__main__":
     import uvicorn
